@@ -22,12 +22,6 @@ build/
 build.*/
 CMakeUserPresets.json
 
-# AppImage Builder
-*.AppImage
-*.AppImage.zsync
-appimage-builder-cache/
-squashfs-root/
-
 # WiX Toolset
 *.msi
 *.wixobj
@@ -35,9 +29,6 @@ squashfs-root/
 
 # VS Code
 .vscode/
-
-# Linux appdata
-/assets/freedesktop/org.zealdocs.zeal.appdata.xml
 
 # vcpkg
 vcpkg/

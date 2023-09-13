@@ -1,0 +1,82 @@
+name: Build and Zip
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+              name: "Qt 5 Portable (no installer)",
+              os: windows-2019,
+              qt_modules: "qtwebengine",
+              qt_version: "5.15.2",
+              configurePreset: ninja-multi-vcpkg-portable,
+              buildPreset: ninja-multi-vcpkg-portable-release,
+              publishArtifacts: false
+            }
+          - {
+              name: "Qt 6 Portable (no installer)",
+              os: windows-2022,
+              qt_modules: "qtwebengine qtwebchannel qtpositioning",
+              qt_version: "6.5.2",
+              configurePreset: ninja-multi-vcpkg-portable,
+              buildPreset: ninja-multi-vcpkg-portable-release,
+              publishArtifacts: true
+            }
+
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ runner.workspace }}/vcpkg
+          vcpkgGitCommitId: 5b1214315250939257ef5d62ecdcbca18cf4fb1c # For vcpkg-tool 2023-03-29.
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          arch: win64_msvc2019_64
+          modules: ${{ matrix.config.qt_modules }}
+          version: ${{ matrix.config.qt_version }}
+          cache: true
+          extra: --external 7z
+
+      - name: Configure & Build
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: ${{ matrix.config.configurePreset }}
+          buildPreset: ${{ matrix.config.buildPreset }}
+
+      - name: Retrieve Application Version
+        run: |
+          $zeal_version = Get-Content build/${{ matrix.config.configurePreset }}/zeal_version
+          Write-Output "Zeal Version: $zeal_version"
+          "ZEAL_VERSION=$zeal_version" >> $env:GITHUB_ENV
+
+      - name: Upload ZIP Artifacts
+        if: matrix.config.publishArtifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: zeal-${{ env.ZEAL_VERSION }}${{ matrix.config.configurePreset == 'ninja-multi-vcpkg-portable' &&  '-portable' || '' }}-windows-x64.zip
+          path: |
+            build/${{ matrix.config.configurePreset }}/zeal-*.zip
